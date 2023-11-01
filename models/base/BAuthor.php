@@ -2,7 +2,7 @@
 
 namespace app\models\base;
 
-use app\models\Book;
+use app\models\BookAuthor;
 use app\models\Subscribe;
 
 /**
@@ -16,6 +16,7 @@ use app\models\Subscribe;
  * @property string $created_date
  * @property string|null $updated_date
  *
+ * @property BookAuthor[] $bookAuthors
  * @property Subscribe[] $subscribes
  */
 class BAuthor extends \yii\db\ActiveRecord
@@ -38,6 +39,7 @@ class BAuthor extends \yii\db\ActiveRecord
             [['is_deleted'], 'integer'],
             [['created_date', 'updated_date'], 'safe'],
             [['first_name', 'middle_name', 'last_name'], 'string', 'max' => 256],
+            [['first_name', 'middle_name', 'last_name'], 'unique', 'targetAttribute' => ['first_name', 'middle_name', 'last_name']],
         ];
     }
 
@@ -55,6 +57,16 @@ class BAuthor extends \yii\db\ActiveRecord
             'created_date' => 'Created Date',
             'updated_date' => 'Updated Date',
         ];
+    }
+
+    /**
+     * Gets query for [[BookAuthors]].
+     *
+     * @return \yii\db\ActiveQuery
+     */
+    public function getBookAuthors()
+    {
+        return $this->hasMany(BookAuthor::class, ['author_id' => 'id']);
     }
 
     /**

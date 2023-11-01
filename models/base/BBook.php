@@ -2,7 +2,7 @@
 
 namespace app\models\base;
 
-use app\models\Author;
+use app\models\BookAuthor;
 
 /**
  * This is the model class for table "book".
@@ -10,14 +10,15 @@ use app\models\Author;
  * @property int $id
  * @property string $name
  * @property string|null $description
- * @property string|null $year
- * @property string|null $author_ids
+ * @property int|null $year
  * @property string $isbn_10
  * @property string $isbn_13
  * @property string|null $image
  * @property int $is_deleted
  * @property string $created_date
  * @property string|null $updated_date
+ *
+ * @property BookAuthor[] $bookAuthors
  */
 class BBook extends \yii\db\ActiveRecord
 {
@@ -37,8 +38,8 @@ class BBook extends \yii\db\ActiveRecord
         return [
             [['name', 'isbn_10', 'isbn_13', 'created_date'], 'required'],
             [['description'], 'string'],
-            [['year', 'author_ids', 'created_date', 'updated_date'], 'safe'],
-            [['is_deleted'], 'integer'],
+            [['year', 'is_deleted'], 'integer'],
+            [['created_date', 'updated_date'], 'safe'],
             [['name', 'image'], 'string', 'max' => 256],
             [['isbn_10'], 'string', 'max' => 13],
             [['isbn_13'], 'string', 'max' => 17],
@@ -57,7 +58,6 @@ class BBook extends \yii\db\ActiveRecord
             'name' => 'Name',
             'description' => 'Description',
             'year' => 'Year',
-            'author_ids' => 'Author Ids',
             'isbn_10' => 'Isbn 10',
             'isbn_13' => 'Isbn 13',
             'image' => 'Image',
@@ -65,5 +65,15 @@ class BBook extends \yii\db\ActiveRecord
             'created_date' => 'Created Date',
             'updated_date' => 'Updated Date',
         ];
+    }
+
+    /**
+     * Gets query for [[BookAuthors]].
+     *
+     * @return \yii\db\ActiveQuery
+     */
+    public function getBookAuthors()
+    {
+        return $this->hasMany(BookAuthor::class, ['book_id' => 'id']);
     }
 }

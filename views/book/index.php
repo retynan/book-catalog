@@ -2,10 +2,10 @@
 
 /** @var yii\web\View $this */
 /** @var \yii\data\ActiveDataProvider $provider */
+/** @var app\models\Book $model */
 
-use yii\bootstrap5\Button;
 use yii\bootstrap5\Html;
-use app\models\Book;
+use yii\grid\GridView;
 
 ?>
 <div class="book-index">
@@ -26,17 +26,47 @@ use app\models\Book;
             <?php
                 try
                 {
-                    echo \yii\grid\GridView::widget([
+                    echo GridView::widget([
                         'dataProvider' => $provider,
                         'columns' => [
                             'id',
-                            'name',
                             [
-                                'label' => 'Author(s)',
-                                'attribute' => 'author_ids',
+                                'attribute' => 'name',
                                 'content' => function ($model, $key, $index, $column)
                                 {
-                                    return Book::getAuthorsNameByBookId($model['id']);
+                                    if (date('Y-m-d', strtotime($model->created_date)) == date ('Y-m-d'))
+                                        return $model->name . '<span class="badge bg-success">New</span>';
+                                    else
+                                        return $model->name;
+                                }
+                            ],
+                            [
+                                'label' => 'Author(s)',
+                                'content' => function ($model, $key, $index, $column)
+                                {
+                                    $bookAuthors = $model->bookAuthors;
+
+                                    if (empty($bookAuthors))
+                                        return null;
+
+                                    $result = null;
+
+                                    /** @var \app\models\BookAuthor[] $bookAuthors */
+                                    foreach ($bookAuthors as $bookAuthor)
+                                    {
+                                        $author = $bookAuthor->author;
+
+                                        if ($author)
+                                            $result .= Html::tag('span', $author->authorFullName, [
+                                                'class' => 'badge rounded-pill bg-primary',
+                                                'data-bs-toggle' => 'modal',
+                                                'data-bs-target' => '#subscribe-modal',
+                                                'data-author-id' => $author->id,
+                                                'data-author-name' => $author->authorFullName
+                                        ]);
+                                    }
+
+                                    return $result;
                                 }
                             ],
                             'description',
@@ -48,44 +78,26 @@ use app\models\Book;
                                 'content' => function ($model, $key, $index, $column)
                                 {
                                     if ($model['image'])
-                                        return Html::a('View', ['/uploads/images/' . $model['image']], [
+                                        return Html::a('View', ['/uploads/images/' . $model->image], [
                                             'target' => '_blank'
                                         ]);
                                     else
                                         return null;
                                 }
                             ],
-                            Yii::$app->user->isGuest ? [
-                                'class' => 'yii\grid\ActionColumn',
-                                'header' => 'Actions',
-                                'template' => '{subscribe}',
-                                'buttons' => [
-                                    'subscribe' => function($url, $model, $key)
-                                    {
-                                        return Button::widget([
-                                            'label' => 'Subscribe to the author(s)',
-                                            'options' => [
-                                                'class' => 'btn btn-link',
-                                                'data-bs-toggle' => 'modal',
-                                                'data-bs-target' => '#subscribe-modal',
-                                                'data-book-id' => $model['id'],
-                                                'data-book-authors-name' => Book::getAuthorsNameByBookId($model['id'])
-                                            ]
-                                        ]);
-                                    }
-                                ],
-                            ] : [
+                            [
                                 'class' => 'yii\grid\ActionColumn',
                                 'header' => 'Actions',
                                 'template' => '{update}{delete}',
+                                'visible' => !Yii::$app->user->isGuest,
                                 'buttons' => [
                                     'update' => function($url, $model, $key)
                                     {
-                                        return Html::a('Update', ['book/update', 'id' => $model['id']]);
+                                        return Html::a('Update', ['book/update', 'id' => $model->id]);
                                     },
                                     'delete' => function($url, $model, $key)
                                     {
-                                        return Html::a('Delete', ['book/delete', 'id' => $model['id']], [
+                                        return Html::a('Delete', ['book/delete', 'id' => $model->id], [
                                             'data' => [
                                                 'confirm' => 'Are you sure you want to delete this item?'
                                             ]
@@ -124,13 +136,14 @@ use app\models\Book;
                     <?= Html::textInput('subscribe_phone', null, [
                         'id' => 'phone',
                         'class' => 'col-lg-3 form-control',
-                        'maxlength' => 15
+                        'maxlength' => 15,
                     ]) ?>
                 </div>
 
                 <div class="alert alert-primary" role="alert" style="display: none;"></div>
-                <div class="alert alert-danger" role="alert" style="display: none;"></div>
+                <div class="alert alert-warning" role="alert" style="display: none;"></div>
                 <div class="alert alert-success" role="alert" style="display: none;"></div>
+                <div class="alert alert-danger" role="alert" style="display: none;"></div>
 
             </div>
             <div class="modal-footer">
@@ -144,33 +157,46 @@ use app\models\Book;
 <script>
     $(function ()
     {
-        $('.btn-link').on('click', (event) =>
+        $('#phone').inputmask("(999) 999-9999");
+
+        $('.badge').on('click', (event) =>
         {
-            let authorsName = $(event.target).data('book-authors-name');
-            let bookId = $(event.target).data('book-id');
+            let authorId = $(event.target).data('author-id');
+            let authorName = $(event.target).data('author-name');
 
             $('.alert-primary').html(
-                `Be informed when there are new books from the author(s): ${authorsName}. We'll SMS message you when they're available.
+                `Be informed when there are new books from the author: ${authorName}. We'll SMS message you when they're available.
             `).show();
 
             $('.btn-primary').on('click', () =>
             {
-                $('.alert-danger').hide().html(null);
+                $('.alert-warning').hide().html(null);
                 $('.alert-success').hide().html(null);
+                $('.alert-danger').hide().html(null);
 
                 let phone = $('#phone').val();
 
                 $.ajax({
                     method: 'POST',
-                    url: `/subscribe/${bookId}`,
+                    url: `/subscribe/${authorId}`,
                     data: {phone: phone}
-                }).done((response) =>
+                }).done((response, status, jqXHR) =>
                 {
                     $('#phone').val(null);
-                    $('.alert-success').html(`You have successfully subscribed to the author(s): ${authorsName}`).show();
-                }).fail((response) =>
+
+                    if (jqXHR.status == 201)
+                        $('.alert-success').html(response.message).show();
+                    else
+                    {
+                        if (response.error)
+                            $('.alert-danger').html(response.message).show();
+                        else
+                            $('.alert-warning').html(response.message).show();
+                    }
+                }).fail((response, status, jqXHR) =>
                 {
-                    $('.alert-danger').html(response.responseText).show();
+                    $('#phone').val(null);
+                    $('.alert-danger').html(response.responseJSON.message).show();
                 });
             });
         });

@@ -60,6 +60,8 @@ $config = [
                 'book/delete/<id:\d+>' => 'book/delete',
 
                 'author' => 'author/index',
+                'author/top' => 'author/top',
+                'author/top/<year:\d{4}>' => 'author/top',
                 'author/add' => 'author/add',
                 'author/update/<id:\d+>' => 'author/update',
                 'author/delete/<id:\d+>' => 'author/delete',

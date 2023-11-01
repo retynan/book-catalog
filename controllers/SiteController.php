@@ -2,7 +2,7 @@
 
 namespace app\controllers;
 
-use app\models\Book;
+use app\models\Author;
 use app\models\Subscribe;
 use Yii;
 use yii\filters\AccessControl;
@@ -11,6 +11,7 @@ use yii\web\Controller;
 use yii\filters\VerbFilter;
 use app\models\LoginForm;
 use yii\web\NotFoundHttpException;
+use yii\web\Response;
 
 class SiteController extends Controller
 {
@@ -72,39 +73,58 @@ class SiteController extends Controller
 
     public function actionSubscribe(int $id)
     {
-        /**
-         * @var Book $model
-         */
-        $book = Book::find()->where(['id' => $id, 'is_deleted' => 0])->limit(1)->one();
+        Yii::$app->response->format = Response::FORMAT_JSON;
 
-        if (empty($book))
-            throw new NotFoundHttpException('Book not found.');
+        /**
+         * @var Author $author
+         */
+        $author = Author::find()->where(['id' => $id, 'is_deleted' => 0])->limit(1)->one();
+
+        if (empty($author))
+            throw new NotFoundHttpException('Author not found.');
 
         $phone = Yii::$app->request->post('phone');
 
         if (empty($phone))
-            throw new BadRequestHttpException('Field not filled in: phone number.');
+            throw new BadRequestHttpException('Please enter your phone number.');
 
-        foreach ($book->author_ids as $author)
+        /**
+         * @var Subscribe $subscribe
+         */
+        $subscribe = Subscribe::find()
+            ->where(['phone' => $phone, 'author_id' => $author])
+            ->limit(1)
+            ->one();
+
+        if ($subscribe)
+            return [
+                'message' => 'You are already subscribed to the author ' . $author->authorFullName . '.',
+                'error' => false
+            ];
+
+        $subscribe = new Subscribe();
+
+        $subscribe->phone = $phone;
+        $subscribe->author_id = $author->id;
+        $subscribe->created_date = date('Y-m-d H:i:s');
+
+        if ($subscribe->save())
         {
-            /**
-             * @var Subscribe $subscribe
-             */
-            $subscribe = Subscribe::find()
-                ->where(['phone' => $phone, 'author_id' => $author])
-                ->limit(1)
-                ->one();
+            Yii::$app->response->statusCode = 201;
 
-            if ($subscribe)
-                continue;
+            return [
+                'message' => 'You have successfully subscribed to the author ' . $author->authorFullName . '.',
+                'error' => false
+            ];
+        }
+        else
+        {
+            Yii::error($subscribe->errors);
 
-            $subscribe = new Subscribe();
-
-            $subscribe->phone = $phone;
-            $subscribe->author_id = $author;
-            $subscribe->created_date = date('Y-m-d H:i:s');
-
-            $subscribe->save();
+            return [
+                'message' => 'Something went wrong. Try again later.',
+                'error' => true
+            ];
         }
     }
 }

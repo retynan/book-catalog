@@ -40,6 +40,7 @@ $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii
         'options' => ['class' => 'navbar-nav'],
         'items' => [
             ['label' => 'Home', 'url' => ['/book/index']],
+            ['label' => 'TOP Authors', 'url' => ['/author/top']],
             ['label' => 'Authors List', 'visible' => !Yii::$app->user->isGuest, 'url' => ['/author/index']],
             Yii::$app->user->isGuest
                 ? ['label' => 'Login', 'url' => ['/site/login']]

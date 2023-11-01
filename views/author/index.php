@@ -4,6 +4,7 @@
 /** @var \yii\data\ActiveDataProvider $provider */
 
 use yii\bootstrap5\Html;
+use yii\grid\GridView;
 
 $this->title = 'Authors List';
 $this->params['breadcrumbs'][] = $this->title;
@@ -21,7 +22,7 @@ $this->params['breadcrumbs'][] = $this->title;
             <?php
                 try
                 {
-                    echo \yii\grid\GridView::widget([
+                    echo GridView::widget([
                         'dataProvider' => $provider,
                         'columns' => [
                             'id',
@@ -35,11 +36,11 @@ $this->params['breadcrumbs'][] = $this->title;
                                 'buttons' => [
                                     'update' => function($url, $model, $key)
                                     {
-                                        return Html::a('Update', ['author/update', 'id' => $model['id']]);
+                                        return Html::a('Update', ['author/update', 'id' => $model->id]);
                                     },
                                     'delete' => function($url, $model, $key)
                                     {
-                                        return Html::a('Delete', ['author/delete', 'id' => $model['id']], [
+                                        return Html::a('Delete', ['author/delete', 'id' => $model->id], [
                                             'data' => [
                                                 'confirm' => 'Are you sure you want to delete this item?'
                                             ]

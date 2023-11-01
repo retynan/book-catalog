@@ -2,23 +2,18 @@
 
 namespace app\controllers;
 
-use app\models\Author;
 use app\models\Book;
+use app\models\BookAuthor;
 use app\models\Subscribe;
 use Yii;
 use yii\data\ActiveDataProvider;
-use yii\db\Query;
 use yii\filters\AccessControl;
-use yii\web\BadRequestHttpException;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 use yii\web\UploadedFile;
 
 class BookController extends Controller
 {
-    /**
-     * {@inheritdoc}
-     */
     public function behaviors()
     {
         return [
@@ -38,12 +33,14 @@ class BookController extends Controller
 
     public function actionIndex()
     {
+        $query = Book::find();
+
         $provider = new ActiveDataProvider([
-            'query' =>  (new Query())->from(Book::tableName())->where(['is_deleted' => 0]),
-            'pagination' => [
-                'pageSize' => 40,
-            ]
+            'query' => $query
         ]);
+
+        $provider->pagination->pageSize = 40;
+        $provider->setSort(['defaultOrder' => ['id' => SORT_DESC]]);
 
         return $this->render('index', ['provider' => $provider]);
     }
@@ -64,7 +61,7 @@ class BookController extends Controller
                 $savePath = Yii::getAlias('@webroot/uploads/images/') . $fileName . '.' . $model->_image->extension;
 
                 if (!file_exists(Yii::getAlias('@webroot/uploads/images')))
-                    mkdir(Yii::getAlias('@webroot/uploads/images'), 0777);
+                    mkdir(Yii::getAlias('@webroot/uploads/images'), 0777, true);
 
                 $model->_image->saveAs($savePath, false);
 
@@ -72,7 +69,24 @@ class BookController extends Controller
             }
 
             if (!$model->save())
-                throw new BadRequestHttpException($model->errors);
+            {
+                return $this->render('add', [
+                    'model' => $model
+                ]);
+            }
+
+            if ($model->_authors)
+                foreach ($model->_authors as $author)
+                {
+                    $bookAuthor = new BookAuthor();
+
+                    $bookAuthor->book_id = $model->id;
+                    $bookAuthor->author_id = $author;
+                    $bookAuthor->created_date = date('Y-m-d H:i:s');
+
+                    if (!$bookAuthor->save())
+                        Yii::error($bookAuthor->errors);
+                }
 
             $this->handleSubscribes($model);
 
@@ -80,7 +94,7 @@ class BookController extends Controller
         }
 
         return $this->render('add', [
-            'model' => $model,
+            'model' => $model
         ]);
     }
 
@@ -92,7 +106,7 @@ class BookController extends Controller
         if (empty($model))
             throw new NotFoundHttpException('Book not found.');
 
-        if ($model->load(Yii::$app->request->post()))
+        if ($model->load(Yii::$app->request->post(), 'Book'))
         {
             $model->updated_date = date('Y-m-d H:i:s');
 
@@ -104,7 +118,7 @@ class BookController extends Controller
                 $savePath = Yii::getAlias('@webroot/uploads/images/') . $fileName . '.' . $model->_image->extension;
 
                 if (!file_exists(Yii::getAlias('@webroot/uploads/images')))
-                    mkdir(Yii::getAlias('@webroot/uploads/images'), 0777);
+                    mkdir(Yii::getAlias('@webroot/uploads/images'), 0777, true);
 
                 $model->_image->saveAs($savePath, false);
 
@@ -112,9 +126,46 @@ class BookController extends Controller
             }
 
             if (!$model->save())
-                throw new BadRequestHttpException($model->errors);
+                return $this->render('update', [
+                    'model' => $model
+                ]);
+
+            BookAuthor::deleteAll([
+                'book_id' => $model->id
+            ]);
+
+            if ($model->_authors)
+            {
+                foreach ($model->_authors as $author)
+                {
+                    $bookAuthor = new BookAuthor();
+
+                    $bookAuthor->book_id = $model->id;
+                    $bookAuthor->author_id = $author;
+                    $bookAuthor->created_date = date('Y-m-d H:i:s');
+
+                    if (!$bookAuthor->save())
+                        Yii::error($bookAuthor->errors);
+                }
+            }
 
             return $this->redirect(['book/index']);
+        }
+
+        $bookAuthors = $model->bookAuthors;
+
+        if ($bookAuthors)
+        {
+            foreach ($bookAuthors as $bookAuthor)
+                $model->_authors[] = $bookAuthor->author_id;
+        }
+
+        if (!file_exists(Yii::getAlias('@webroot/uploads/images/') . $model->image))
+        {
+            $model->image = null;
+
+            if (!$model->save())
+                Yii::error($model->errors);
         }
 
         return $this->render('update', [
@@ -133,29 +184,30 @@ class BookController extends Controller
         $model->is_deleted = 1;
         $model->updated_date = date('Y-m-d H:i:s');
 
-        $model->save();
+        if (!$model->save())
+            Yii::error($model->errors);
 
         return $this->redirect(['book/index']);
     }
 
     protected function handleSubscribes(Book $book)
     {
-        if (empty($book->author_ids))
+        $bookAuthors = $book->bookAuthors;
+
+        if (empty($bookAuthors))
             return false;
 
-        foreach ($book->author_ids as $author)
+        /** @var BookAuthor[] $bookAuthors */
+        foreach ($bookAuthors as $bookAuthor)
         {
             /** @var Subscribe[] $subscribes */
-            $subscribes = Subscribe::find()->where(['author_id' => $author])->all();
+            $subscribes = Subscribe::find()->where(['author_id' => $bookAuthor->author_id])->all();
 
             foreach ($subscribes as $subscribe)
             {
-                $authorFullName = Author::getAuthorName($author);
-
-                if (empty($authorFullName))
-                    continue;
-
-                $message = 'A new book by the author has been added to the catalog ' . $authorFullName . '.';
+                $message = 'A new book ( '
+                    . $book->name . ' ) by the author ('
+                    . $bookAuthor->author->authorFullName . ') has been added to the catalog.';
 
                 Yii::$app->sms->send($subscribe->phone, $message);
             }
